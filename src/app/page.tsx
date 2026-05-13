@@ -13,6 +13,7 @@ import {
   Scale,
   ArrowRight,
   Clock,
+  Newspaper,
 } from "lucide-react";
 import { BrianzaMap } from "@/components/map/BrianzaMap";
 import { ComuniList } from "@/components/comuni-list";
@@ -57,6 +58,11 @@ async function getUpcomingEvents(): Promise<(Event & { municipality: Municipalit
     .gte("event_date", new Date().toISOString().split("T")[0])
     .order("event_date");
   return data || [];
+}
+
+function getNewsCover(article: { image_urls?: string[] | null; image_url?: string | null }): string | null {
+  if (article.image_urls && article.image_urls.length > 0) return article.image_urls[0];
+  return article.image_url ?? null;
 }
 
 function formatDate(dateStr: string) {
@@ -232,37 +238,60 @@ export default async function Home() {
       </section>
 
       {/* Featured News - moved below hero */}
-      {featuredNews && (
-        <section className="bg-gradient-to-br from-[#1B3A6B] to-[#0f2444] text-white">
-          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-px flex-1 max-w-12 bg-white/40" />
-              <Badge className="bg-white/20 text-white hover:bg-white/30 uppercase tracking-wider text-xs">
-                Le news della Provincia di Monza e Brianza
-              </Badge>
-              <div className="h-px flex-1 bg-white/40" />
+      {featuredNews && (() => {
+        const cover = getNewsCover(featuredNews);
+        return (
+          <section className="bg-gradient-to-br from-[#1B3A6B] to-[#0f2444] text-white">
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-px flex-1 max-w-12 bg-white/40" />
+                <Badge className="bg-white/20 text-white hover:bg-white/30 uppercase tracking-wider text-xs">
+                  Le news della Provincia di Monza e Brianza
+                </Badge>
+                <div className="h-px flex-1 bg-white/40" />
+              </div>
+              <div className={cover ? "grid gap-8 lg:grid-cols-2 lg:items-center" : ""}>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
+                    {featuredNews.title}
+                  </h2>
+                  <p className="mt-4 text-base text-white/80 sm:text-lg">
+                    {featuredNews.excerpt}
+                  </p>
+                  <div className="mt-6 flex items-center gap-4">
+                    <span className="text-sm text-white/60">
+                      {formatDate(featuredNews.published_at)}
+                    </span>
+                    <Link
+                      href={`/news/${featuredNews.slug}`}
+                      className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-[#1B3A6B] transition-colors hover:bg-white/90"
+                    >
+                      Leggi di più
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+                {cover && (
+                  <Link
+                    href={`/news/${featuredNews.slug}`}
+                    className="relative aspect-[16/10] rounded-xl overflow-hidden shadow-2xl ring-2 ring-white/10 hover:ring-white/30 transition-all group"
+                  >
+                    <Image
+                      src={cover}
+                      alt={featuredNews.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 1024px) 100vw, 600px"
+                      priority
+                      unoptimized
+                    />
+                  </Link>
+                )}
+              </div>
             </div>
-            <h2 className="max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-              {featuredNews.title}
-            </h2>
-            <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
-              {featuredNews.excerpt}
-            </p>
-            <div className="mt-6 flex items-center gap-4">
-              <span className="text-sm text-white/60">
-                {formatDate(featuredNews.published_at)}
-              </span>
-              <Link
-                href={`/news/${featuredNews.slug}`}
-                className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-[#1B3A6B] transition-colors hover:bg-white/90"
-              >
-                Leggi di più
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
+          </section>
+        );
+      })()}
 
       {/* Recent News */}
       {recentNews.length > 0 && (
@@ -277,25 +306,44 @@ export default async function Home() {
             </Link>
           </div>
           <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {recentNews.map((article) => (
-              <Link key={article.id} href={`/news/${article.slug}`}>
-                <Card className="h-full transition-shadow hover:shadow-md">
-                  <CardHeader>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(article.published_at)}
-                    </p>
-                    <CardTitle className="text-lg leading-snug">
-                      {article.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {article.excerpt}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {recentNews.map((article) => {
+              const cover = getNewsCover(article);
+              return (
+                <Link key={article.id} href={`/news/${article.slug}`} className="group">
+                  <Card className="h-full overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 pt-0">
+                    {cover ? (
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+                        <Image
+                          src={cover}
+                          alt={article.title}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          unoptimized
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative aspect-[16/10] w-full bg-gradient-to-br from-[#1B3A6B]/10 to-[#1B3A6B]/5 flex items-center justify-center">
+                        <Newspaper className="h-12 w-12 text-[#1B3A6B]/20" />
+                      </div>
+                    )}
+                    <CardHeader>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(article.published_at)}
+                      </p>
+                      <CardTitle className="text-lg leading-snug group-hover:text-[#1B3A6B] transition-colors">
+                        {article.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {article.excerpt}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
