@@ -4,10 +4,11 @@ import { useState, useMemo, useId } from "react";
 import Link from "next/link";
 import { Delaunay } from "d3-delaunay";
 import type { Municipality } from "@/lib/types";
-import { Phone, Mail } from "lucide-react";
+import { Phone, Mail, CalendarCheck } from "lucide-react";
 
 interface Props {
   municipalities: Municipality[];
+  upcomingEventsByMunicipality?: Record<string, number>;
 }
 
 // Traced from the real administrative map of Provincia di Monza e Brianza
@@ -114,7 +115,7 @@ function toSvg(lng: number, lat: number): [number, number] {
   return [x, y];
 }
 
-export function BrianzaMap({ municipalities }: Props) {
+export function BrianzaMap({ municipalities, upcomingEventsByMunicipality = {} }: Props) {
   const [hovered, setHovered] = useState<Municipality | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const clipId = useId();
@@ -274,7 +275,7 @@ export function BrianzaMap({ municipalities }: Props) {
       {/* Tooltip */}
       {hovered && (
         <div
-          className="pointer-events-none absolute z-10 rounded-lg border bg-white px-3 py-2 shadow-lg"
+          className="pointer-events-none absolute z-10 rounded-lg border bg-white px-3 py-2 shadow-lg min-w-[180px]"
           style={{
             left: tooltipPos.x,
             top: tooltipPos.y - 70,
@@ -284,11 +285,12 @@ export function BrianzaMap({ municipalities }: Props) {
           <p className="font-semibold text-sm text-[#1B3A6B]">
             {hovered.name}
           </p>
-          {hovered.has_sede ? (
-            <p className="text-xs text-green-600 font-medium">Sede attiva</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Aiutaci! Apri una sede
+          {(upcomingEventsByMunicipality[hovered.id] ?? 0) > 0 && (
+            <p className="text-xs text-amber-600 font-medium flex items-center gap-1 mt-1">
+              <CalendarCheck className="h-3 w-3" />
+              {upcomingEventsByMunicipality[hovered.id] === 1
+                ? "Evento programmato"
+                : `${upcomingEventsByMunicipality[hovered.id]} eventi programmati`}
             </p>
           )}
           {hovered.contact_phone && (
@@ -305,18 +307,6 @@ export function BrianzaMap({ municipalities }: Props) {
           )}
         </div>
       )}
-
-      {/* Legend */}
-      <div className="mt-4 flex items-center justify-center gap-6 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded bg-[#1B3A6B]" />
-          <span>Sede attiva</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded bg-[#dfe6f0] border border-slate-300" />
-          <span>Senza sede</span>
-        </div>
-      </div>
     </div>
   );
 }

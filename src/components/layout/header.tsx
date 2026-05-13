@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Lock } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -37,25 +37,35 @@ export function Header() {
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-[#1B3A6B]"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex items-center gap-2">
+          <nav className="hidden md:flex items-center gap-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-[#1B3A6B]"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="md:hidden rounded-md p-2 text-foreground/70 hover:bg-accent"
-          aria-label="Menu"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+          <Link
+            href="/login"
+            className="hidden md:inline-flex items-center gap-1.5 rounded-md border border-[#1B3A6B] bg-[#1B3A6B] px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2d5aa0] hover:border-[#2d5aa0] ml-2"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Area riservata
+          </Link>
+
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="md:hidden rounded-md p-2 text-foreground/70 hover:bg-accent"
+            aria-label="Menu"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {mobileOpen && (
@@ -71,6 +81,14 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              href="/login"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-1.5 rounded-md bg-[#1B3A6B] px-3 py-2 text-sm font-medium text-white"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Area riservata
+            </Link>
           </nav>
         </div>
       )}

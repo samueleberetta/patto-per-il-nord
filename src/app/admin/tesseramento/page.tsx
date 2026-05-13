@@ -29,6 +29,11 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search, Download } from "lucide-react";
 import type { Municipality } from "@/lib/types";
+import {
+  PlaceAutocomplete,
+  CountryAutocomplete,
+} from "@/components/place-autocomplete";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 interface Member {
   id: string;
@@ -42,18 +47,54 @@ interface Member {
   fee_paid: number;
   municipality_id: string;
   municipality?: Municipality;
+  document_type: string | null;
+  document_number: string | null;
+  fiscal_code: string | null;
+  born_abroad: boolean;
+  birth_country: string | null;
+  education_level: string | null;
+  card_number: string | null;
+  email: string | null;
+  phone: string | null;
 }
+
+const EDUCATION_LEVELS = [
+  { value: "nessuno", label: "Nessuno" },
+  { value: "licenza_elementare", label: "Licenza elementare" },
+  { value: "licenza_media", label: "Licenza media" },
+  { value: "diploma", label: "Diploma di scuola superiore" },
+  { value: "laurea_triennale", label: "Laurea triennale" },
+  { value: "laurea_magistrale", label: "Laurea magistrale" },
+  { value: "master", label: "Master" },
+  { value: "dottorato", label: "Dottorato" },
+];
+
+const DOCUMENT_TYPES = [
+  { value: "carta_identita", label: "Carta d'identità" },
+  { value: "patente", label: "Patente di guida" },
+  { value: "passaporto", label: "Passaporto" },
+  { value: "altro", label: "Altro" },
+];
 
 const emptyForm = {
   last_name: "",
   first_name: "",
   birth_place: "",
+  birth_country: "",
+  born_abroad: false,
   birth_date: "",
   residence: "",
   profession: "",
   membership_date: new Date().toISOString().split("T")[0],
   fee_paid: "0",
   municipality_id: "",
+  document_type: "carta_identita",
+  document_number: "",
+  fiscal_code: "",
+  education_level: "",
+  card_number: "",
+  email: "",
+  phone: "",
 };
 
 export default function AdminTesseramentoPage() {
@@ -87,12 +128,21 @@ export default function AdminTesseramentoPage() {
       last_name: m.last_name,
       first_name: m.first_name,
       birth_place: m.birth_place || "",
+      birth_country: m.birth_country || "",
+      born_abroad: m.born_abroad ?? false,
       birth_date: m.birth_date || "",
       residence: m.residence || "",
       profession: m.profession || "",
       membership_date: m.membership_date,
       fee_paid: String(m.fee_paid),
       municipality_id: m.municipality_id,
+      document_type: m.document_type || "carta_identita",
+      document_number: m.document_number || "",
+      fiscal_code: m.fiscal_code || "",
+      education_level: m.education_level || "",
+      card_number: m.card_number || "",
+      email: m.email || "",
+      phone: m.phone || "",
     });
     setEditingId(m.id);
     setOpen(true);
@@ -102,7 +152,12 @@ export default function AdminTesseramentoPage() {
     const payload = {
       last_name: form.last_name,
       first_name: form.first_name,
-      birth_place: form.birth_place || null,
+      // If born abroad, save the country in birth_place (or use birth_country)
+      birth_place: form.born_abroad
+        ? null
+        : form.birth_place || null,
+      birth_country: form.born_abroad ? form.birth_country || null : null,
+      born_abroad: form.born_abroad,
       birth_date: form.birth_date || null,
       residence: form.residence || null,
       profession: form.profession || null,
@@ -110,6 +165,13 @@ export default function AdminTesseramentoPage() {
       fee_paid: parseFloat(form.fee_paid) || 0,
       province_id: "a0000000-0000-0000-0000-000000000001",
       municipality_id: form.municipality_id,
+      document_type: form.document_type || null,
+      document_number: form.document_number || null,
+      fiscal_code: form.fiscal_code ? form.fiscal_code.toUpperCase() : null,
+      education_level: form.education_level || null,
+      card_number: form.card_number || null,
+      email: form.email || null,
+      phone: form.phone || null,
     };
 
     if (editingId) {
@@ -174,12 +236,172 @@ export default function AdminTesseramentoPage() {
                   <div><Label>Cognome</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
                   <div><Label>Nome</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Luogo di nascita</Label><Input value={form.birth_place} onChange={(e) => setForm({ ...form, birth_place: e.target.value })} /></div>
-                  <div><Label>Data di nascita</Label><Input type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} /></div>
+                {/* Born abroad checkbox */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="born_abroad"
+                    checked={form.born_abroad}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        born_abroad: e.target.checked,
+                        birth_place: e.target.checked ? "" : form.birth_place,
+                        birth_country: e.target.checked ? form.birth_country : "",
+                      })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="born_abroad">Nato all&apos;estero</Label>
                 </div>
-                <div><Label>Residenza</Label><Input value={form.residence} onChange={(e) => setForm({ ...form, residence: e.target.value })} /></div>
-                <div><Label>Professione</Label><Input value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} /></div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    {form.born_abroad ? (
+                      <>
+                        <Label>Stato di nascita</Label>
+                        <CountryAutocomplete
+                          value={form.birth_country}
+                          onChange={(v) => setForm({ ...form, birth_country: v })}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Label>Luogo di nascita (comune)</Label>
+                        <PlaceAutocomplete
+                          value={form.birth_place}
+                          onChange={(v) => setForm({ ...form, birth_place: v })}
+                          scope="italy"
+                          placeholder="Cerca un comune italiano..."
+                        />
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Data di nascita</Label>
+                    <Input
+                      type="date"
+                      value={form.birth_date}
+                      onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Residenza</Label>
+                  <AddressAutocomplete
+                    value={form.residence}
+                    onChange={(value) => setForm({ ...form, residence: value })}
+                    placeholder="Cerca via, civico e comune..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="email@esempio.com"
+                    />
+                  </div>
+                  <div>
+                    <Label>Telefono</Label>
+                    <Input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="333 1234567"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Professione</Label>
+                    <Input
+                      value={form.profession}
+                      onChange={(e) => setForm({ ...form, profession: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Titolo di studio</Label>
+                    <Select
+                      value={form.education_level || "none"}
+                      onValueChange={(v) =>
+                        setForm({ ...form, education_level: v === "none" ? "" : v ?? "" })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Seleziona">
+                          {form.education_level
+                            ? EDUCATION_LEVELS.find((e) => e.value === form.education_level)?.label
+                            : "Seleziona"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[var(--trigger-width)]">
+                        <SelectItem value="none">— Non specificato —</SelectItem>
+                        {EDUCATION_LEVELS.map((e) => (
+                          <SelectItem key={e.value} value={e.value}>
+                            {e.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Documento di identità */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Documento d&apos;identità
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Tipo di documento</Label>
+                      <Select
+                        value={form.document_type}
+                        onValueChange={(v) => v && setForm({ ...form, document_type: v })}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue>
+                            {DOCUMENT_TYPES.find((d) => d.value === form.document_type)?.label ||
+                              form.document_type}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="min-w-[var(--trigger-width)]">
+                          {DOCUMENT_TYPES.map((d) => (
+                            <SelectItem key={d.value} value={d.value}>
+                              {d.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Numero documento</Label>
+                      <Input
+                        value={form.document_number}
+                        onChange={(e) =>
+                          setForm({ ...form, document_number: e.target.value })
+                        }
+                        placeholder="Es. AY1234567"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Codice fiscale</Label>
+                    <Input
+                      value={form.fiscal_code}
+                      onChange={(e) =>
+                        setForm({ ...form, fiscal_code: e.target.value.toUpperCase() })
+                      }
+                      placeholder="RSSMRA80A01H501Z"
+                      maxLength={16}
+                      className="font-mono uppercase"
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Comune di tesseramento</Label>
@@ -192,7 +414,26 @@ export default function AdminTesseramentoPage() {
                   </div>
                   <div><Label>Data tesseramento</Label><Input type="date" value={form.membership_date} onChange={(e) => setForm({ ...form, membership_date: e.target.value })} /></div>
                 </div>
-                <div><Label>Quota pagata (€)</Label><Input type="number" step="0.01" value={form.fee_paid} onChange={(e) => setForm({ ...form, fee_paid: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Numero tessera</Label>
+                    <Input
+                      value={form.card_number}
+                      onChange={(e) => setForm({ ...form, card_number: e.target.value })}
+                      placeholder="Es. 2026-0001"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label>Quota pagata (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={form.fee_paid}
+                      onChange={(e) => setForm({ ...form, fee_paid: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <Button onClick={handleSave} className="w-full bg-[#1B3A6B] hover:bg-[#2d5aa0]">
                   {editingId ? "Salva modifiche" : "Inserisci tessera"}
                 </Button>

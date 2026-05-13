@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { BrianzaMap } from "@/components/map/BrianzaMap";
 import { ComuniList } from "@/components/comuni-list";
+import { getEventTypeLabel, getEventTypeColor } from "@/lib/event-types";
 import type { NewsArticle, Event, Municipality } from "@/lib/types";
 
 export const revalidate = 60;
@@ -53,8 +55,7 @@ async function getUpcomingEvents(): Promise<(Event & { municipality: Municipalit
     .from("events")
     .select("*, municipality:municipalities(*)")
     .gte("event_date", new Date().toISOString().split("T")[0])
-    .order("event_date")
-    .limit(4);
+    .order("event_date");
   return data || [];
 }
 
@@ -66,20 +67,6 @@ function formatDate(dateStr: string) {
   });
 }
 
-const eventTypeLabels: Record<string, string> = {
-  banchetto: "Banchetto",
-  riunione: "Riunione",
-  serata: "Serata",
-  altro: "Evento",
-};
-
-const eventTypeColors: Record<string, string> = {
-  banchetto: "bg-blue-100 text-blue-800",
-  riunione: "bg-amber-100 text-amber-800",
-  serata: "bg-purple-100 text-purple-800",
-  altro: "bg-gray-100 text-gray-800",
-};
-
 export default async function Home() {
   const [featuredNews, recentNews, municipalities, events] = await Promise.all([
     getFeaturedNews(),
@@ -88,19 +75,177 @@ export default async function Home() {
     getUpcomingEvents(),
   ]);
 
+  // Build map of municipality_id -> count of upcoming events for tooltip
+  const upcomingEventsByMunicipality: Record<string, number> = {};
+  for (const ev of events) {
+    if (ev.municipality_id) {
+      upcomingEventsByMunicipality[ev.municipality_id] =
+        (upcomingEventsByMunicipality[ev.municipality_id] ?? 0) + 1;
+    }
+  }
+
   return (
     <div>
-      {/* Hero — Featured News */}
+      {/* Hero — Impactful with logo */}
+      <section className="relative overflow-hidden bg-[#0a1d3d] text-white min-h-[75vh] flex items-center">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1d3d] via-[#1B3A6B] to-[#0a1d3d]" />
+
+        {/* Blurred landscape silhouette (Brianza/Lombardia hills) */}
+        <div className="absolute inset-0 opacity-50">
+          <svg
+            className="absolute bottom-0 w-full h-full"
+            viewBox="0 0 1440 600"
+            preserveAspectRatio="xMidYMax slice"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <filter id="hero-blur" x="-10%" y="-10%" width="120%" height="120%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="25" />
+              </filter>
+              <linearGradient id="hill-gradient-1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6b9dd8" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#1B3A6B" stopOpacity="0.95" />
+              </linearGradient>
+              <linearGradient id="hill-gradient-2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7badd8" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#1B3A6B" stopOpacity="0.8" />
+              </linearGradient>
+            </defs>
+            {/* Distant alps - very blurred */}
+            <path
+              d="M0,380 L100,260 L180,310 L260,220 L340,290 L420,240 L520,300 L620,250 L720,310 L820,260 L920,290 L1020,230 L1120,280 L1220,250 L1320,300 L1440,270 L1440,600 L0,600 Z"
+              fill="url(#hill-gradient-2)"
+              filter="url(#hero-blur)"
+            />
+            {/* Mid hills */}
+            <path
+              d="M0,450 Q200,360 380,400 T720,380 Q900,340 1080,390 T1440,380 L1440,600 L0,600 Z"
+              fill="url(#hill-gradient-1)"
+              filter="url(#hero-blur)"
+            />
+            {/* Foreground hills */}
+            <path
+              d="M0,520 Q180,470 360,490 T720,480 Q900,450 1080,480 T1440,490 L1440,600 L0,600 Z"
+              fill="#0a1d3d"
+              opacity="0.8"
+              filter="url(#hero-blur)"
+            />
+          </svg>
+        </div>
+
+        {/* Decorative blurred circles for depth */}
+        <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-[#4a7bb8] opacity-25 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-[#2d5aa0] opacity-25 blur-3xl" />
+
+        {/* Decorative keywords - background text */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 hidden lg:flex items-center justify-between overflow-hidden select-none"
+        >
+          <div className="flex flex-col gap-8 text-7xl font-black tracking-tight text-white/5 -ml-8">
+            <span>TRADIZIONE</span>
+            <span>TERRITORIO</span>
+            <span>LIBERTÀ</span>
+          </div>
+          <div className="flex flex-col gap-8 text-7xl font-black tracking-tight text-white/5 -mr-8 text-right">
+            <span>IDENTITÀ</span>
+            <span>FUTURO</span>
+            <span>NORD</span>
+          </div>
+        </div>
+
+        {/* Vignette overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a1d3d]/70 via-transparent to-[#0a1d3d]/20" />
+
+        {/* Content - 2 column layout */}
+        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24 w-full">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+            {/* Logo - left side */}
+            <div className="flex justify-center lg:justify-start order-1">
+              <div className="relative flex h-56 w-56 items-center justify-center sm:h-72 sm:w-72 lg:h-96 lg:w-96">
+                {/* Glow effect */}
+                <div className="absolute inset-0 rounded-full bg-white/20 blur-2xl" />
+                <div className="absolute inset-4 rounded-full bg-blue-400/20 blur-xl" />
+                {/* Logo container */}
+                <div className="relative flex h-full w-full items-center justify-center rounded-full bg-white shadow-2xl ring-4 ring-white/30">
+                  <Image
+                    src="/logo-ppn.png"
+                    alt="Patto per il Nord"
+                    width={400}
+                    height={400}
+                    className="h-full w-full object-contain p-3"
+                    priority
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Text - right side */}
+            <div className="text-center lg:text-left order-2">
+              {/* Title */}
+              <h1 className="text-5xl font-black tracking-tight sm:text-6xl lg:text-7xl xl:text-8xl">
+                <span className="block">PATTO PER</span>
+                <span className="block bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
+                  IL NORD
+                </span>
+              </h1>
+
+              {/* Subtitle */}
+              <div className="mt-6 flex items-center justify-center gap-3 lg:justify-start">
+                <div className="h-px w-12 bg-white/40" />
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80 sm:text-base">
+                  Provincia di Monza e Brianza
+                </p>
+                <div className="h-px w-12 bg-white/40 lg:hidden" />
+              </div>
+
+              {/* Tagline */}
+              <p className="mt-8 max-w-xl text-lg text-white/80 sm:text-xl mx-auto lg:mx-0">
+                Per l&apos;autonomia, l&apos;identità regionale e la sovranità
+                delle terre del Nord. Il movimento confederale dei popoli
+                lombardi e padani.
+              </p>
+
+              {/* CTAs */}
+              <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4 lg:items-start lg:justify-start justify-center">
+                <Link
+                  href="/comuni"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-[#1B3A6B] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl hover:scale-105"
+                >
+                  Scopri i nostri comuni
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/organigramma"
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-white/40 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur transition-all hover:bg-white/10 hover:border-white/60"
+                >
+                  Conosci la squadra
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#0a1d3d] to-transparent pointer-events-none" />
+      </section>
+
+      {/* Featured News - moved below hero */}
       {featuredNews && (
         <section className="bg-gradient-to-br from-[#1B3A6B] to-[#0f2444] text-white">
-          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-            <Badge className="mb-4 bg-white/20 text-white hover:bg-white/30">
-              In evidenza
-            </Badge>
-            <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-px flex-1 max-w-12 bg-white/40" />
+              <Badge className="bg-white/20 text-white hover:bg-white/30 uppercase tracking-wider text-xs">
+                Le news della Provincia di Monza e Brianza
+              </Badge>
+              <div className="h-px flex-1 bg-white/40" />
+            </div>
+            <h2 className="max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
               {featuredNews.title}
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg text-white/80">
+            </h2>
+            <p className="mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
               {featuredNews.excerpt}
             </p>
             <div className="mt-6 flex items-center gap-4">
@@ -166,8 +311,8 @@ export default async function Home() {
               {
                 icon: Scale,
                 title: "Statuto",
-                desc: "Lo statuto del Patto per il Nord",
-                href: "https://www.pattoperilnord.it",
+                desc: "Atto costitutivo del 31 luglio 2024",
+                href: "/statuto-ppn.pdf",
               },
               {
                 icon: FileText,
@@ -226,7 +371,10 @@ export default async function Home() {
           Clicca su un comune per scoprire la sezione locale
         </p>
         <div className="mt-8">
-          <BrianzaMap municipalities={municipalities} />
+          <BrianzaMap
+            municipalities={municipalities}
+            upcomingEventsByMunicipality={upcomingEventsByMunicipality}
+          />
         </div>
       </section>
 
@@ -274,9 +422,9 @@ export default async function Home() {
                       <h3 className="font-semibold truncate">{event.title}</h3>
                       <Badge
                         variant="secondary"
-                        className={eventTypeColors[event.event_type]}
+                        className={getEventTypeColor(event.event_type)}
                       >
-                        {eventTypeLabels[event.event_type]}
+                        {getEventTypeLabel(event.event_type)}
                       </Badge>
                     </div>
                     {event.description && (

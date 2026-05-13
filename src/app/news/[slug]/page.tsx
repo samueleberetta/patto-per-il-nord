@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { NewsImageGallery } from "@/components/news-image-gallery";
 
 export const revalidate = 60;
 
@@ -18,6 +19,14 @@ export default async function NewsArticlePage({
     .single();
 
   if (!article) notFound();
+
+  // Build images array: use image_urls if available, fallback to legacy image_url
+  const images: string[] =
+    article.image_urls && article.image_urls.length > 0
+      ? article.image_urls
+      : article.image_url
+        ? [article.image_url]
+        : [];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -41,6 +50,13 @@ export default async function NewsArticlePage({
           {article.title}
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">{article.excerpt}</p>
+
+        {images.length > 0 && (
+          <div className="mt-8">
+            <NewsImageGallery images={images} alt={article.title} />
+          </div>
+        )}
+
         <div className="mt-8 prose prose-slate max-w-none">
           {article.content.split("\n\n").map((paragraph: string, i: number) => (
             <p key={i}>{paragraph}</p>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Mail, MapPin, Clock, Calendar } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/event-types";
 
 export const revalidate = 60;
 
@@ -43,13 +44,6 @@ export default async function ComunePage({
       .eq("municipality_id", municipality.id)
       .order("display_order"),
   ]);
-
-  const eventTypeLabels: Record<string, string> = {
-    banchetto: "Banchetto",
-    riunione: "Riunione",
-    serata: "Serata",
-    altro: "Evento",
-  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -199,7 +193,7 @@ export default async function ComunePage({
                         </span>
                       )}
                       <Badge variant="secondary" className="text-[10px]">
-                        {eventTypeLabels[event.event_type]}
+                        {getEventTypeLabel(event.event_type)}
                       </Badge>
                     </div>
                   </div>

@@ -23,25 +23,30 @@ import {
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, MapPin, Clock } from "lucide-react";
 import type { Event, Municipality } from "@/lib/types";
+import { useAdminContext } from "@/lib/admin-context";
+import { EVENT_TYPES, eventTypeLabels } from "@/lib/event-types";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 const emptyForm = {
   title: "",
   description: "",
-  event_type: "altro" as string,
+  event_type: "incontro_pubblico" as string,
   event_date: "",
   event_time: "",
   location: "",
+  location_lat: null as number | null,
+  location_lng: null as number | null,
   municipality_id: "",
+  contact_email: "",
+  contact_phone: "",
 };
 
-const typeLabels: Record<string, string> = {
-  banchetto: "Banchetto",
-  riunione: "Riunione",
-  serata: "Serata",
-  altro: "Altro",
-};
+const typeLabels = eventTypeLabels;
 
 export default function AdminEventiPage() {
+  const { role, municipalityId } = useAdminContext();
+  const isCommunal = role === "resp_comunale";
+
   const [events, setEvents] = useState<(Event & { municipality: Municipality | null })[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -50,18 +55,28 @@ export default function AdminEventiPage() {
   const supabase = createSupabaseBrowser();
 
   async function load() {
+    let eventsQuery = supabase.from("events").select("*, municipality:municipalities(*)").order("event_date");
+    if (isCommunal && municipalityId) {
+      eventsQuery = eventsQuery.eq("municipality_id", municipalityId);
+    }
     const [{ data: ev }, { data: muni }] = await Promise.all([
-      supabase.from("events").select("*, municipality:municipalities(*)").order("event_date"),
+      eventsQuery,
       supabase.from("municipalities").select("*").order("name"),
     ]);
     setEvents(ev || []);
     setMunicipalities(muni || []);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (role !== null) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, municipalityId]);
 
   function openNew() {
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      municipality_id: isCommunal && municipalityId ? municipalityId : "",
+    });
     setEditingId(null);
     setOpen(true);
   }
@@ -74,13 +89,18 @@ export default function AdminEventiPage() {
       event_date: event.event_date,
       event_time: event.event_time || "",
       location: event.location || "",
+      location_lat: event.location_lat ?? null,
+      location_lng: event.location_lng ?? null,
       municipality_id: event.municipality_id || "",
+      contact_email: event.contact_email || "",
+      contact_phone: event.contact_phone || "",
     });
     setEditingId(event.id);
     setOpen(true);
   }
 
   async function handleSave() {
+    const finalMunicipalityId = isCommunal && municipalityId ? municipalityId : (form.municipality_id || null);
     const payload = {
       title: form.title,
       description: form.description || null,
@@ -88,8 +108,12 @@ export default function AdminEventiPage() {
       event_date: form.event_date,
       event_time: form.event_time || null,
       location: form.location || null,
+      location_lat: form.location_lat,
+      location_lng: form.location_lng,
       province_id: "a0000000-0000-0000-0000-000000000001",
-      municipality_id: form.municipality_id || null,
+      municipality_id: finalMunicipalityId,
+      contact_email: form.contact_email || null,
+      contact_phone: form.contact_phone || null,
     };
 
     if (editingId) {
@@ -138,25 +162,35 @@ export default function AdminEventiPage() {
                 <div>
                   <Label>Tipo</Label>
                   <Select value={form.event_type} onValueChange={(v) => v && setForm({ ...form, event_type: v })}>
-                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="banchetto">Banchetto</SelectItem>
-                      <SelectItem value="riunione">Riunione</SelectItem>
-                      <SelectItem value="serata">Serata</SelectItem>
-                      <SelectItem value="altro">Altro</SelectItem>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>{eventTypeLabels[form.event_type as keyof typeof eventTypeLabels] || form.event_type}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="min-w-[var(--trigger-width)]">
+                      {EVENT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {eventTypeLabels[t]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Comune</Label>
-                  <Select value={form.municipality_id} onValueChange={(v) => setForm({ ...form, municipality_id: v === "none" ? "" : v ?? "" })}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Provinciale" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Provinciale</SelectItem>
-                      {municipalities.map((m) => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!isCommunal && (
+                  <div>
+                    <Label>Comune</Label>
+                    <Select value={form.municipality_id} onValueChange={(v) => setForm({ ...form, municipality_id: v === "none" ? "" : v ?? "" })}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Provinciale" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Provinciale</SelectItem>
+                        {municipalities.map((m) => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {isCommunal && (
+                  <div className="rounded-md bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-800 self-end">
+                    Evento per <strong>{municipalities.find((m) => m.id === municipalityId)?.name}</strong>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -170,8 +204,60 @@ export default function AdminEventiPage() {
               </div>
               <div>
                 <Label>Luogo</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                <AddressAutocomplete
+                  value={form.location}
+                  onChange={(value, lat, lng) =>
+                    setForm({
+                      ...form,
+                      location: value,
+                      location_lat: lat ?? null,
+                      location_lng: lng ?? null,
+                    })
+                  }
+                  municipalityName={
+                    form.municipality_id
+                      ? municipalities.find((m) => m.id === form.municipality_id)?.name
+                      : undefined
+                  }
+                />
+                {form.location_lat && form.location_lng && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    📍 {form.location_lat.toFixed(5)}, {form.location_lng.toFixed(5)}
+                  </p>
+                )}
               </div>
+
+              {/* Sezione Contatti */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Contatti
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="email@esempio.com"
+                      value={form.contact_email}
+                      onChange={(e) =>
+                        setForm({ ...form, contact_email: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Telefono</Label>
+                    <Input
+                      type="tel"
+                      placeholder="039 1234567"
+                      value={form.contact_phone}
+                      onChange={(e) =>
+                        setForm({ ...form, contact_phone: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
               <Button onClick={handleSave} className="w-full bg-[#1B3A6B] hover:bg-[#2d5aa0]">
                 {editingId ? "Salva modifiche" : "Crea evento"}
               </Button>

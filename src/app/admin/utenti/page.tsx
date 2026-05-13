@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, KeyRound, Shield } from "lucide-react";
+import { Plus, Trash2, KeyRound, Shield, MapPin } from "lucide-react";
+import type { Municipality } from "@/lib/types";
 
 interface AdminUser {
   id: string;
@@ -28,6 +29,7 @@ interface AdminUser {
   created_at: string;
   role: string;
   province_id: string;
+  municipality_id: string | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -35,6 +37,7 @@ const roleLabels: Record<string, string> = {
   segretario_provinciale: "Segretario Provinciale",
   resp_comunicazione: "Resp. Comunicazione",
   resp_tesseramento: "Resp. Tesseramento",
+  resp_comunale: "Resp. Comunale",
 };
 
 const roleBadgeColors: Record<string, string> = {
@@ -42,19 +45,23 @@ const roleBadgeColors: Record<string, string> = {
   segretario_provinciale: "bg-[#1B3A6B] text-white",
   resp_comunicazione: "bg-blue-500 text-white",
   resp_tesseramento: "bg-green-600 text-white",
+  resp_comunale: "bg-orange-500 text-white",
 };
 
 const emptyForm = {
   email: "",
   password: "",
   role: "resp_comunicazione",
+  municipality_id: "",
 };
 
 export default function AdminUtentiPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState("");
+  const [editingMunicipality, setEditingMunicipality] = useState("");
   const [passwordForm, setPasswordForm] = useState({ id: "", password: "" });
   const [openNew, setOpenNew] = useState(false);
   const [openEditRole, setOpenEditRole] = useState(false);
@@ -63,9 +70,15 @@ export default function AdminUtentiPage() {
   const supabase = createSupabaseBrowser();
 
   async function load() {
-    const { data, error } = await supabase.rpc("admin_list_users");
-    if (!error && data) {
-      setUsers(data as AdminUser[]);
+    const [{ data: usersData, error: usersError }, { data: muniData }] = await Promise.all([
+      supabase.rpc("admin_list_users"),
+      supabase.from("municipalities").select("*").order("name"),
+    ]);
+    if (!usersError && usersData) {
+      setUsers(usersData as AdminUser[]);
+    }
+    if (muniData) {
+      setMunicipalities(muniData);
     }
   }
 
@@ -83,11 +96,16 @@ export default function AdminUtentiPage() {
       setError("La password deve avere almeno 6 caratteri.");
       return;
     }
+    if (form.role === "resp_comunale" && !form.municipality_id) {
+      setError("Seleziona il comune di riferimento per il responsabile comunale.");
+      return;
+    }
 
     const { error: rpcError } = await supabase.rpc("admin_create_user", {
       p_email: form.email,
       p_password: form.password,
       p_role: form.role,
+      p_municipality_id: form.role === "resp_comunale" ? form.municipality_id : null,
     });
 
     if (rpcError) {
@@ -104,11 +122,17 @@ export default function AdminUtentiPage() {
 
   async function handleUpdateRole() {
     if (!editingId) return;
+    if (editingRole === "resp_comunale" && !editingMunicipality) {
+      setError("Seleziona il comune di riferimento.");
+      return;
+    }
     await supabase.rpc("admin_update_user_role", {
       p_user_id: editingId,
       p_role: editingRole,
+      p_municipality_id: editingRole === "resp_comunale" ? editingMunicipality : null,
     });
     setOpenEditRole(false);
+    setError("");
     load();
   }
 
@@ -144,6 +168,8 @@ export default function AdminUtentiPage() {
   function openEditRoleDialog(user: AdminUser) {
     setEditingId(user.id);
     setEditingRole(user.role);
+    setEditingMunicipality(user.municipality_id || "");
+    setError("");
     setOpenEditRole(true);
   }
 
@@ -151,6 +177,11 @@ export default function AdminUtentiPage() {
     setPasswordForm({ id: user.id, password: "" });
     setError("");
     setOpenPassword(true);
+  }
+
+  function getMunicipalityName(id: string | null) {
+    if (!id) return null;
+    return municipalities.find((m) => m.id === id)?.name || null;
   }
 
   return (
@@ -204,7 +235,7 @@ export default function AdminUtentiPage() {
               <Label>Ruolo</Label>
               <Select
                 value={form.role}
-                onValueChange={(v) => v && setForm({ ...form, role: v })}
+                onValueChange={(v) => v && setForm({ ...form, role: v, municipality_id: v === "resp_comunale" ? form.municipality_id : "" })}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>{roleLabels[form.role] || form.role}</SelectValue>
@@ -214,9 +245,32 @@ export default function AdminUtentiPage() {
                   <SelectItem value="segretario_provinciale">Segretario Provinciale</SelectItem>
                   <SelectItem value="resp_comunicazione">Resp. Comunicazione</SelectItem>
                   <SelectItem value="resp_tesseramento">Resp. Tesseramento</SelectItem>
+                  <SelectItem value="resp_comunale">Resp. Comunale</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.role === "resp_comunale" && (
+              <div>
+                <Label>Comune di riferimento</Label>
+                <Select
+                  value={form.municipality_id}
+                  onValueChange={(v) => v && setForm({ ...form, municipality_id: v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleziona un comune">
+                      {getMunicipalityName(form.municipality_id) || "Seleziona un comune"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[var(--trigger-width)] max-h-72">
+                    {municipalities.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
@@ -239,7 +293,15 @@ export default function AdminUtentiPage() {
           <div className="space-y-4">
             <div>
               <Label>Ruolo</Label>
-              <Select value={editingRole} onValueChange={(v) => v && setEditingRole(v)}>
+              <Select
+                value={editingRole}
+                onValueChange={(v) => {
+                  if (v) {
+                    setEditingRole(v);
+                    if (v !== "resp_comunale") setEditingMunicipality("");
+                  }
+                }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue>{roleLabels[editingRole] || editingRole}</SelectValue>
                 </SelectTrigger>
@@ -248,9 +310,35 @@ export default function AdminUtentiPage() {
                   <SelectItem value="segretario_provinciale">Segretario Provinciale</SelectItem>
                   <SelectItem value="resp_comunicazione">Resp. Comunicazione</SelectItem>
                   <SelectItem value="resp_tesseramento">Resp. Tesseramento</SelectItem>
+                  <SelectItem value="resp_comunale">Resp. Comunale</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {editingRole === "resp_comunale" && (
+              <div>
+                <Label>Comune di riferimento</Label>
+                <Select
+                  value={editingMunicipality}
+                  onValueChange={(v) => v && setEditingMunicipality(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleziona un comune">
+                      {getMunicipalityName(editingMunicipality) || "Seleziona un comune"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[var(--trigger-width)] max-h-72">
+                    {municipalities.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
             <Button
               onClick={handleUpdateRole}
               className="w-full bg-[#1B3A6B] hover:bg-[#2d5aa0]"
@@ -303,6 +391,12 @@ export default function AdminUtentiPage() {
                   <Badge className={`text-[10px] px-1.5 py-0 ${roleBadgeColors[user.role] || "bg-gray-500 text-white"}`}>
                     {roleLabels[user.role] || user.role}
                   </Badge>
+                  {user.role === "resp_comunale" && user.municipality_id && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                      <MapPin className="h-2.5 w-2.5" />
+                      {getMunicipalityName(user.municipality_id)}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Creato: {new Date(user.created_at).toLocaleDateString("it-IT")}

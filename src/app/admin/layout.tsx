@@ -27,17 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AdminProvider } from "@/lib/admin-context";
 
 type AdminRole =
   | "superadmin"
   | "segretario_provinciale"
   | "resp_comunicazione"
-  | "resp_tesseramento";
+  | "resp_tesseramento"
+  | "resp_comunale";
 
 const allNavItems = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione", "resp_tesseramento"] },
-  { href: "/admin/news", label: "News", icon: Newspaper, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione"] },
-  { href: "/admin/eventi", label: "Eventi", icon: Calendar, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione"] },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione", "resp_tesseramento", "resp_comunale"] },
+  { href: "/admin/news", label: "News", icon: Newspaper, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione", "resp_comunale"] },
+  { href: "/admin/eventi", label: "Eventi", icon: Calendar, roles: ["superadmin", "segretario_provinciale", "resp_comunicazione", "resp_comunale"] },
   { href: "/admin/tesseramento", label: "Tesseramento", icon: Users, roles: ["superadmin", "segretario_provinciale", "resp_tesseramento"] },
   { href: "/admin/organigramma", label: "Organigramma", icon: UserCircle, roles: ["superadmin", "segretario_provinciale"] },
   { href: "/admin/comuni", label: "Comuni", icon: MapPin, roles: ["superadmin", "segretario_provinciale"] },
@@ -50,6 +52,7 @@ const roleLabels: Record<AdminRole, string> = {
   segretario_provinciale: "Segretario Provinciale",
   resp_comunicazione: "Resp. Comunicazione",
   resp_tesseramento: "Resp. Tesseramento",
+  resp_comunale: "Resp. Comunale",
 };
 
 export default function AdminLayout({
@@ -61,6 +64,7 @@ export default function AdminLayout({
   const router = useRouter();
   const [realRole, setRealRole] = useState<AdminRole | null>(null);
   const [viewAsRole, setViewAsRole] = useState<AdminRole | null>(null);
+  const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -84,12 +88,13 @@ export default function AdminLayout({
 
       const { data: profile } = await supabase
         .from("user_profiles")
-        .select("role")
+        .select("role, municipality_id")
         .eq("id", user.id)
         .single();
 
       if (profile) {
         setRealRole(profile.role as AdminRole);
+        setMunicipalityId(profile.municipality_id);
       } else {
         router.push("/login");
         return;
@@ -223,6 +228,12 @@ export default function AdminLayout({
                       Resp. Tesseramento
                     </span>
                   </SelectItem>
+                  <SelectItem value="resp_comunale" className="text-sm py-2">
+                    <span className="flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-orange-500" />
+                      Resp. Comunale
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -332,6 +343,12 @@ export default function AdminLayout({
                         Resp. Tesseramento
                       </span>
                     </SelectItem>
+                    <SelectItem value="resp_comunale" className="text-sm py-2.5">
+                      <span className="flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-orange-500" />
+                        Resp. Comunale
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -415,7 +432,18 @@ export default function AdminLayout({
           isImpersonating ? "pt-10" : ""
         }`}
       >
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</div>
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+          <AdminProvider
+            value={{
+              role,
+              realRole,
+              municipalityId,
+              isImpersonating,
+            }}
+          >
+            {children}
+          </AdminProvider>
+        </div>
       </div>
     </div>
   );

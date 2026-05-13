@@ -7,20 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, MapPin, Clock, Calendar } from "lucide-react";
 import type { Event, Municipality } from "@/lib/types";
-
-const eventTypeLabels: Record<string, string> = {
-  banchetto: "Banchetto",
-  riunione: "Riunione",
-  serata: "Serata",
-  altro: "Evento",
-};
-
-const eventTypeColors: Record<string, string> = {
-  banchetto: "bg-blue-100 text-blue-800",
-  riunione: "bg-amber-100 text-amber-800",
-  serata: "bg-purple-100 text-purple-800",
-  altro: "bg-gray-100 text-gray-800",
-};
+import { getEventTypeLabel, getEventTypeColor } from "@/lib/event-types";
 
 type EventWithMunicipality = Event & { municipality: Municipality | null };
 
@@ -95,9 +82,9 @@ export default function EventiPage() {
                   <h3 className="font-semibold">{event.title}</h3>
                   <Badge
                     variant="secondary"
-                    className={eventTypeColors[event.event_type]}
+                    className={getEventTypeColor(event.event_type)}
                   >
-                    {eventTypeLabels[event.event_type]}
+                    {getEventTypeLabel(event.event_type)}
                   </Badge>
                 </div>
                 {event.description && (
